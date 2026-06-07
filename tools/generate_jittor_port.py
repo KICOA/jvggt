@@ -247,6 +247,23 @@ def patch_file(rel_src: str, text: str) -> str:
             "uu, vv = jt.meshgrid(x_coords, y_coords)\n"
             "    uu, vv = uu.transpose(), vv.transpose()",
         )
+        text = text.replace(
+            "x_coords = jt.linspace(left_x, right_x, steps=width, dtype=dtype)",
+            "x_coords = jt.linspace(left_x, right_x, steps=width)",
+        )
+        text = text.replace(
+            "y_coords = jt.linspace(top_y, bottom_y, steps=height, dtype=dtype)",
+            "y_coords = jt.linspace(top_y, bottom_y, steps=height)",
+        )
+        if "if dtype is not None:" not in text and "x_coords = jt.linspace(left_x, right_x, steps=width)" in text:
+            text = text.replace(
+                "    y_coords = jt.linspace(top_y, bottom_y, steps=height)\n\n    uu, vv = jt.meshgrid",
+                "    y_coords = jt.linspace(top_y, bottom_y, steps=height)\n"
+                "    if dtype is not None:\n"
+                "        x_coords = x_coords.astype(dtype)\n"
+                "        y_coords = y_coords.astype(dtype)\n\n"
+                "    uu, vv = jt.meshgrid",
+            )
 
     if rel_src == "layers/rope.py":
         text = text.replace(

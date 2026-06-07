@@ -95,9 +95,12 @@ def create_uv_grid(
     top_y = -span_y * (height - 1) / height
     bottom_y = span_y * (height - 1) / height
 
-    # Generate 1D coordinates
-    x_coords = jt.linspace(left_x, right_x, steps=width, dtype=dtype)
-    y_coords = jt.linspace(top_y, bottom_y, steps=height, dtype=dtype)
+    # Jittor linspace(start, end, steps) has no dtype= kwarg (PyTorch does).
+    x_coords = jt.linspace(left_x, right_x, steps=width)
+    y_coords = jt.linspace(top_y, bottom_y, steps=height)
+    if dtype is not None:
+        x_coords = x_coords.astype(dtype)
+        y_coords = y_coords.astype(dtype)
 
     uu, vv = jt.meshgrid(x_coords, y_coords)
     uu, vv = uu.transpose(), vv.transpose()
