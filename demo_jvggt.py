@@ -73,6 +73,52 @@ def print_prediction_summary(predictions: dict) -> None:
             print("  WARNING: world_points are near zero — check weight loading (tools/check_forward.py)")
 
 
+def save_prediction_previews(predictions: dict, out_dir: str) -> None:
+    """Save per-frame PNGs: input | depth | point confidence (Kaggle / headless friendly)."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    os.makedirs(out_dir, exist_ok=True)
+    images = predictions.get("images")
+    if images is None:
+        raise ValueError("predictions['images'] missing — cannot save previews")
+
+    n_frames = int(images.shape[0])
+    for i in range(n_frames):
+        img = np.transpose(images[i], (1, 2, 0))
+        img = np.clip(np.nan_to_num(img, nan=0.0), 0.0, 1.0)
+
+        panels = [("Input", img, None)]
+        if "depth" in predictions:
+            panels.append(("Depth", predictions["depth"][i].squeeze(), "turbo"))
+        if "depth_conf" in predictions:
+            panels.append(("Depth conf", predictions["depth_conf"][i].squeeze(), "viridis"))
+        if "world_points_conf" in predictions:
+            panels.append(("Point conf", predictions["world_points_conf"][i].squeeze(), "viridis"))
+
+        fig, axes = plt.subplots(1, len(panels), figsize=(5 * len(panels), 4))
+        if len(panels) == 1:
+            axes = [axes]
+        for ax, (title, data, cmap) in zip(axes, panels):
+            if data.ndim == 3:
+                ax.imshow(data)
+            else:
+                ax.imshow(data, cmap=cmap)
+            ax.set_title(title)
+            ax.axis("off")
+        plt.tight_layout()
+        out_path = os.path.join(out_dir, f"frame_{i:02d}.png")
+        fig.savefig(out_path, dpi=120, bbox_inches="tight")
+        plt.close(fig)
+        print(f"  saved {out_path}")
+
+    npz_path = os.path.join(out_dir, "predictions.npz")
+    np.savez(npz_path, **{k: v for k, v in predictions.items() if isinstance(v, np.ndarray)})
+    print(f"  saved {npz_path}")
+
+
 parser = argparse.ArgumentParser(description="VGGT Jittor (jvggt) demo with viser visualization")
 parser.add_argument(
     "--image_folder",
@@ -137,6 +183,13 @@ parser.add_argument(
     "--low_vram",
     action="store_true",
     help="8GB shortcut: max_images=1, frames_chunk_size=1 (depth still on unless --skip_depth)",
+)
+parser.add_argument(
+    "--save_preview",
+    type=str,
+    default=None,
+    metavar="DIR",
+    help="Save input/depth/conf PNGs (+ predictions.npz) to DIR; skips viser (good for Kaggle)",
 )
 
 
@@ -214,8 +267,15 @@ def main() -> None:
 
     print_prediction_summary(predictions)
 
-    if args.inference_only:
-        print("Done (--inference_only, skipping viser).")
+    if args.save_preview:
+        print(f"Saving preview images to {args.save_preview} ...")
+        save_prediction_previews(predictions, args.save_preview)
+
+    if args.inference_only or args.save_preview:
+        if args.inference_only:
+            print("Done (--inference_only, skipping viser).")
+        else:
+            print("Done (--save_preview, skipping viser).")
         return
 
     # demo_viser default: depth unproject; --use_point_map uses world_points instead
