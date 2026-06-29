@@ -24,9 +24,18 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 import time
 
-# Must run before any ``import jittor`` (Windows: use system cl.exe, not bundled msvc.zip).
+parser = argparse.ArgumentParser(description="VGGT Jittor (jvggt) demo - early arg parsing", add_help=False)
+parser.add_argument("--force_cpu", action="store_true", help="Force Jittor CPU mode (workaround for cuDNN issues)")
+early_args, _ = parser.parse_known_args()
+
+if early_args.force_cpu:
+    os.environ["use_cuda"] = "0"
+    os.environ["jt_cuda"] = "0"
+    print("[jvggt] Forced CPU mode (--force_cpu)")
+
 from jvggt.jittor_env import configure_jittor_compiler
 
 configure_jittor_compiler()
@@ -158,7 +167,7 @@ parser.add_argument(
     action="store_true",
     help="Run inference and print tensor shapes; skip viser",
 )
-parser.add_argument("--cpu", action="store_true", help="Force Jittor CPU (no CUDA)")
+parser.add_argument("--cpu", action="store_true", help="Force Jittor CPU (no CUDA). Use --force_cpu if cuDNN is missing")
 parser.add_argument(
     "--max_images",
     type=int,
