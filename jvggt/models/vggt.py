@@ -17,6 +17,19 @@ def _materialize_var(x: jt.Var) -> jt.Var:
     return jt.array(x.numpy())
 
 
+def _materialize_token_list(tokens_list: list) -> list:
+    """Move cached aggregator outputs to CPU to free VRAM before heads."""
+    out = []
+    for t in tokens_list:
+        if t is None:
+            out.append(None)
+        elif isinstance(t, jt.Var):
+            out.append(_materialize_var(t))
+        else:
+            out.append(t)
+    return out
+
+
 class VGGT(nn.Module):
     def __init__(
         self,
@@ -59,6 +72,8 @@ class VGGT(nn.Module):
             query_points = query_points.unsqueeze(0)
 
         aggregated_tokens_list, patch_start_idx = self.aggregator(images)
+        aggregated_tokens_list = _materialize_token_list(aggregated_tokens_list)
+        jt.sync_all()
         jt.gc()
 
         predictions = {}
@@ -66,7 +81,8 @@ class VGGT(nn.Module):
         with jt.no_grad():
             if self.camera_head is not None:
                 pose_enc_list = self.camera_head(aggregated_tokens_list)
-                predictions["pose_enc"] = pose_enc_list[-1]
+                predictions["pose_enc"] = _materialize_var(pose_enc_list[-1])
+                jt.sync_all()
                 jt.gc()
 
             if run_depth and self.depth_head is not None:

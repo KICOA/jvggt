@@ -10,11 +10,13 @@ Aligned with ``demo_viser.py`` (PyTorch vggt):
   - viser on numpy predictions (batch dim squeezed)
 
 8GB GPU: use ``--low_vram`` (1 view) or ``--skip_depth`` to save VRAM.
+15GB GPU (2 views): use ``--twoview`` or ``--max_images 2 --skip_point``.
 Default runs depth + world_points (same heads as PyTorch ``demo_viser.py``).
 
 Example:
     python demo_jvggt.py --image_folder examples/kitchen/images/
     python demo_jvggt.py --low_vram
+    python demo_jvggt.py --twoview --save_preview outputs/preview
     python demo_jvggt.py --max_images 0 --vggt_compat   # full vggt logic, high VRAM
 """
 
@@ -175,6 +177,16 @@ parser.add_argument(
     help="Skip depth head (~save 1GB VRAM). Default: run depth head",
 )
 parser.add_argument(
+    "--skip_point",
+    action="store_true",
+    help="Skip world_points head (~save 1GB VRAM). Useful with 2+ views on 15GB GPUs",
+)
+parser.add_argument(
+    "--twoview",
+    action="store_true",
+    help="2-view preset: max_images=2, frames_chunk_size=1, skip_point (keep depth)",
+)
+parser.add_argument(
     "--vggt_compat",
     action="store_true",
     help="Match PyTorch demo_viser: frames_chunk_size=4, depth-unproject vis default",
@@ -195,6 +207,13 @@ parser.add_argument(
 
 def main() -> None:
     args = parser.parse_args()
+
+    if args.twoview:
+        args.max_images = 2
+        args.skip_point = True
+        if args.frames_chunk_size is None:
+            args.frames_chunk_size = 1
+        print("Two-view preset: max_images=2, frames_chunk_size=1, skip_point (depth on)")
 
     if args.low_vram:
         args.max_images = 1
@@ -249,8 +268,11 @@ def main() -> None:
     input_images_np = np.ascontiguousarray(images.numpy(), dtype=np.float32)
 
     run_depth = not args.skip_depth
+    run_point = not args.skip_point
     if not run_depth:
         print("Skipping depth head (--skip_depth). Outputs will not include depth / depth_conf.")
+    if not run_point:
+        print("Skipping point head (--skip_point). Outputs will not include world_points.")
 
     print("Running inference ...")
     t1 = time.perf_counter()
@@ -259,7 +281,7 @@ def main() -> None:
         images,
         frames_chunk_size=args.frames_chunk_size,
         run_depth=run_depth,
-        run_point=True,
+        run_point=run_point,
     )
     predictions = predictions_to_numpy_like_vggt_demo(raw_predictions, image_hw=images.shape[-2:])
     predictions["images"] = input_images_np

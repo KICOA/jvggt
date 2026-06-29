@@ -13,7 +13,7 @@ from jvggt.weight_loader import load_vggt_pretrained
 
 
 def setup_jittor(use_cuda: bool = True) -> None:
-    jt.flags.use_cuda = 1 if use_cuda else 0
+    jt.flags.use_cuda = bool(use_cuda)
 
 
 def create_vggt_model(weights: str | None = None) -> VGGT:
