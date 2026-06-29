@@ -1,0 +1,7 @@
+jittor
+numpy<2
+Pillow
+huggingface_hub
+einops
+safetensors
+matplotlib
